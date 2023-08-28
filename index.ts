@@ -1,5 +1,6 @@
 // Import required packages
 import * as restify from "restify";
+import path from "path";
 
 // Import required bot services.
 // See https://aka.ms/bot-services to learn more about the different parts of a bot.
@@ -8,11 +9,16 @@ import {
   ConfigurationServiceClientCredentialFactory,
   ConfigurationBotFrameworkAuthentication,
   TurnContext,
+  MemoryStorage,
+  CardFactory,
 } from "botbuilder";
 
 // This bot's main dialog.
 import { TeamsBot } from "./teamsBot";
 import config from "./config";
+import { Application } from "@microsoft/teams-ai";
+import { OnBehalfOfCredentialAuthConfig, handleMessageExtensionQueryWithSSO, OnBehalfOfUserCredential, createMicrosoftGraphClientWithCredential } from "@microsoft/teamsfx";
+import "isomorphic-fetch";
 
 // Create adapter.
 // See https://aka.ms/about-bot-adapter to learn more about adapters.
@@ -52,8 +58,41 @@ const onTurnErrorHandler = async (context: TurnContext, error: Error) => {
 // Set the onTurnError for the singleton CloudAdapter.
 adapter.onTurnError = onTurnErrorHandler;
 
-// Create the bot that will handle incoming messages.
-const bot = new TeamsBot();
+// Create bot to handle message extension events using Teams-AI library.
+const storage = new MemoryStorage();
+const app = new Application({
+  storage,
+  adapter,
+  botAppId: config.botId,
+});
+
+const oboAuthConfig: OnBehalfOfCredentialAuthConfig = {
+  authorityHost: config.authorityHost,
+  tenantId: config.tenantId,
+  clientId: config.clientId,
+  clientSecret: config.clientSecret
+}
+const scope= "User.Read"
+const loginEndpoint = `https://${config.botDomain}/auth-start.html`
+
+app.messageExtensions.query("searchQuery", async (context, state, query) => {
+  const result = await handleMessageExtensionQueryWithSSO(context, oboAuthConfig, loginEndpoint, scope, async (token) => {
+    const credential = new OnBehalfOfUserCredential(token.ssoToken, oboAuthConfig);
+    const graphClient = createMicrosoftGraphClientWithCredential(credential, scope);
+    const me = await graphClient.api('/me').get();
+    return {
+      composeExtension: {
+        type:"result",
+        attachmentLayout: "list",
+        attachments: [CardFactory.heroCard(me.displayName, me.mail)]
+      }
+    }
+  });
+
+  if (result) {
+    return result.composeExtension;
+  }
+});
 
 // Create HTTP server.
 const server = restify.createServer();
@@ -65,6 +104,13 @@ server.listen(process.env.port || process.env.PORT || 3978, () => {
 // Listen for incoming requests.
 server.post("/api/messages", async (req, res) => {
   await adapter.process(req, res, async (context) => {
-    await bot.run(context);
+    await app.run(context);
   });
 });
+
+server.get(
+  "/auth-:name(start|end).html",
+  restify.plugins.serveStatic({
+    directory: path.join(__dirname, "public"),
+  })
+);

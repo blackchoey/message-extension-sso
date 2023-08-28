@@ -15,7 +15,7 @@
         "outline": "outline.png"
     },
     "name": {
-        "short": "teams-ai-message-extension-sso-${{TEAMSFX_ENV}}",
+        "short": "message-extension-sso-${{TEAMSFX_ENV}}",
         "full": "full name for teams-ai-message-extension-sso"
     },
     "description": {
@@ -55,5 +55,11 @@
         "identity",
         "messageTeamMembers"
     ],
-    "validDomains": []
+    "validDomains": [
+        "${{BOT_DOMAIN}}"
+    ],
+    "webApplicationInfo": {
+        "id": "${{AAD_APP_CLIENT_ID}}",
+        "resource": "api://botid-${{BOT_ID}}"
+    }
 }
