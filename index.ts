@@ -14,7 +14,6 @@ import {
 } from "botbuilder";
 
 // This bot's main dialog.
-import { TeamsBot } from "./teamsBot";
 import config from "./config";
 import { Application } from "@microsoft/teams-ai";
 import { OnBehalfOfCredentialAuthConfig, handleMessageExtensionQueryWithSSO, OnBehalfOfUserCredential, createMicrosoftGraphClientWithCredential } from "@microsoft/teamsfx";
